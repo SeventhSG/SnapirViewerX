@@ -1,0 +1,13 @@
+node_modules/
+app/dist/
+app/release/
+app/tools/fixtures/
+app/tools/.selftest.*
+*.log
+.DS_Store
+Thumbs.db
+
+# Scans are large and are not ours to redistribute.
+*.ply
+*.svxp
+!app/tools/fixtures/.gitkeep

@@ -1,0 +1,534 @@
+/* Snapir Viewer X. The Snapir Design X system, unchanged: charcoal and gold
+   from the mark, premium white ground. Gold is only ever selection, primary
+   action, or a measurement. Red is only ever something that went wrong. */
+
+:root{
+  --paper:#F6F6F3; --panel:#FFFFFF; --sunk:#F1F1ED; --rail:#FBFBF9;
+  --line:#E6E5DF; --line-2:#D3D2CA; --line-3:#B8B7AE;
+  --ink:#26262A; --ink-2:#5A5A61; --ink-3:#7C7B82;
+  --gold:#A87A26; --gold-2:#C99B3F; --gold-ink:#7A5716;
+  --gold-wash:#FAF3E4; --gold-line:#E4CE9C; --on-gold:#FFFFFF;
+  --ok:#177A4E; --on-ok:#FFFFFF;
+  --warn:#BF3A17; --on-warn:#FFFFFF; --warn-wash:#FBE7DF;
+  --vp:#EDEDE8;
+  --sh-1:0 1px 1px rgba(38,38,42,.05);
+  --sh-2:0 1px 2px rgba(38,38,42,.06), 0 14px 34px -18px rgba(38,38,42,.26);
+  --ui:"Segoe UI Variable Display","Segoe UI",-apple-system,system-ui,sans-serif;
+  --mono:"Cascadia Mono",ui-monospace,Consolas,monospace;
+  --ease:cubic-bezier(.22,1,.36,1);
+  --fast:130ms; --base:190ms;
+  --z-sticky:10; --z-overlay:40; --z-dialog:50; --z-toast:60;
+
+  /* The dynamic island, the notch and the home indicator. Every one of these
+     is 0px on Windows and in a desktop browser, so the layout there is
+     exactly what it was; only an iPhone or iPad shell sees a non-zero value.
+     index.html carries viewport-fit=cover, without which they are all 0
+     everywhere and the page runs under the island. */
+  --sa-t:env(safe-area-inset-top,0px);
+  --sa-r:env(safe-area-inset-right,0px);
+  --sa-b:env(safe-area-inset-bottom,0px);
+  --sa-l:env(safe-area-inset-left,0px);
+}
+
+*{box-sizing:border-box}
+html,body,#root{height:100%}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:var(--ui); font-size:14px; line-height:1.5;
+  -webkit-font-smoothing:antialiased; overflow:hidden;
+  user-select:none; cursor:default;
+}
+h1,h2,h3,h4{margin:0;letter-spacing:-.015em}
+p{margin:0}
+button{font-family:inherit}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* ------------------------------------------------ dark
+   Not an inversion. The grounds get their own tones and gold is lifted so it
+   still reads as the accent against a dark surface. */
+:root[data-theme="dark"]{
+  --paper:#141416; --panel:#1C1C1F; --sunk:#111113; --rail:#181819;
+  --line:#2A2A2F; --line-2:#393940; --line-3:#54545C;
+  --ink:#F0EFEA; --ink-2:#A6A5A0; --ink-3:#88878E;
+  --gold:#C9993C; --gold-2:#DDB05B; --gold-ink:#E4C077;
+  --gold-wash:#2A2213; --gold-line:#54421D; --on-gold:#17120A;
+  --ok:#3FB47A; --on-ok:#08210F;
+  --warn:#E46B3C; --on-warn:#241007; --warn-wash:#2E1A11;
+  --vp:#1A1A1D;
+  --sh-1:0 1px 1px rgba(0,0,0,.34);
+  --sh-2:0 1px 2px rgba(0,0,0,.42), 0 14px 34px -18px rgba(0,0,0,.75);
+}
+:root[data-theme="dark"] .sw::after{background:#E8E7E2}
+
+/* ------------------------------------------------ app frame */
+.app{display:flex;flex-direction:column;height:100%}
+.titlebar{
+  height:calc(40px + var(--sa-t));flex:none;display:flex;align-items:center;gap:11px;
+  padding:var(--sa-t) calc(14px + var(--sa-r)) 0 calc(14px + var(--sa-l));
+  background:var(--rail);border-bottom:1px solid var(--line);
+  -webkit-app-region:drag;
+}
+.titlebar .mk{width:16px;height:16px;color:var(--ink-3);flex:none}
+.titlebar b{font-size:13px;font-weight:600;letter-spacing:-.005em}
+.titlebar .crumb{color:var(--ink-3);font-weight:450}
+.titlebar .right{margin-left:auto;display:flex;align-items:center;gap:8px;
+  -webkit-app-region:no-drag;flex:none}
+/* Only the frameless desktop window has caption buttons to keep clear of. */
+:root[data-shell="electron"] .titlebar .right{padding-right:140px}
+
+/* A long scan name shortens; it never pushes the title onto a second line. */
+.titlebar{min-width:0;flex-wrap:nowrap}
+.titlebar b{white-space:nowrap;flex:none}
+.titlebar .crumb{min-width:0;flex:0 1 auto;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.main{flex:1;min-height:0;display:flex;flex-direction:column}
+
+.lang{display:inline-flex;padding:2px;background:var(--sunk);
+  border:1px solid var(--line);border-radius:8px;gap:2px}
+.lang button{border:0;background:transparent;color:var(--ink-3);font-size:11px;
+  font-weight:650;letter-spacing:.04em;padding:4px 9px;border-radius:6px;cursor:pointer;
+  transition:color var(--fast) var(--ease),background var(--fast) var(--ease)}
+.lang button:hover{color:var(--ink)}
+.lang button[aria-pressed="true"]{background:var(--panel);color:var(--ink);box-shadow:var(--sh-1)}
+
+/* ------------------------------------------------ controls */
+.btn{
+  appearance:none;border:1px solid transparent;border-radius:8px;padding:7px 14px;
+  font-size:13px;font-weight:600;cursor:pointer;background:var(--gold);color:var(--on-gold);
+  display:inline-flex;align-items:center;gap:7px;
+  transition:background var(--fast) var(--ease),transform 90ms var(--ease),
+             border-color var(--fast) var(--ease),color var(--fast) var(--ease);
+}
+.btn:hover:not(:disabled){background:var(--gold-2)}
+.btn:active:not(:disabled){transform:scale(.985)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.q{background:transparent;color:var(--ink-2);border-color:var(--line-2)}
+.btn.q:hover:not(:disabled){background:var(--sunk);color:var(--ink)}
+.btn.sm{padding:5px 10px;font-size:12px;border-radius:7px}
+.btn svg{flex:none}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+.seg{display:inline-flex;padding:3px;background:var(--sunk);border:1px solid var(--line);
+  border-radius:9px;gap:2px}
+.seg button{border:0;background:transparent;color:var(--ink-2);font-size:12px;
+  font-weight:550;padding:5px 11px;border-radius:7px;cursor:pointer;white-space:nowrap;
+  transition:background var(--fast) var(--ease),color var(--fast) var(--ease)}
+.seg button:hover{color:var(--ink)}
+.seg button[aria-pressed="true"]{background:var(--gold);color:var(--on-gold)}
+.seg.quiet button[aria-pressed="true"]{background:var(--panel);color:var(--ink);
+  box-shadow:var(--sh-1)}
+
+.sw{appearance:none;border:0;width:40px;height:24px;border-radius:999px;cursor:pointer;
+  background:var(--line-2);position:relative;flex:none;
+  transition:background var(--base) var(--ease)}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;
+  border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);
+  transition:transform var(--base) var(--ease)}
+.sw[aria-checked="true"]{background:var(--gold)}
+.sw[aria-checked="true"]::after{transform:translateX(16px)}
+
+.stepper{display:inline-flex;align-items:center;border:1px solid var(--line-2);
+  border-radius:8px;overflow:hidden;background:var(--panel)}
+.stepper button{border:0;background:transparent;color:var(--ink-2);width:28px;height:30px;
+  cursor:pointer;font-size:15px;line-height:1;
+  transition:background var(--fast) var(--ease),color var(--fast) var(--ease)}
+.stepper button:hover{background:var(--sunk);color:var(--ink)}
+.stepper .unit{font-family:var(--mono);font-size:11px;color:var(--ink-3);
+  padding:0 8px 0 6px;line-height:30px;border-right:1px solid var(--line);user-select:none}
+.stepper input{width:56px;height:30px;border:0;border-left:1px solid var(--line);
+  text-align:center;font-family:var(--mono);font-size:12.5px;background:transparent;
+  color:var(--ink);user-select:text}
+.stepper input:focus{outline:none;background:var(--gold-wash)}
+
+.tag{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;
+  padding:3px 9px;border-radius:6px;white-space:nowrap}
+.t-ok{background:var(--ok);color:var(--on-ok)}
+.t-warn{background:var(--warn);color:var(--on-warn)}
+.t-gold{background:var(--gold);color:var(--on-gold)}
+.t-quiet{background:var(--sunk);color:var(--ink-2);border:1px solid var(--line)}
+
+.textin{border:1px solid var(--line-2);border-radius:8px;background:var(--panel);
+  padding:7px 11px;font-family:inherit;font-size:13px;color:var(--ink);width:230px;
+  user-select:text;transition:border-color var(--fast) var(--ease),
+    box-shadow var(--fast) var(--ease)}
+.textin:hover{border-color:var(--line-3)}
+.textin:focus{outline:none;border-color:var(--gold);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--gold) 15%,transparent)}
+
+/* ------------------------------------------------ scrolling page */
+.page{flex:1;min-height:0;overflow:auto;
+  padding:24px calc(26px + var(--sa-r)) calc(34px + var(--sa-b)) calc(26px + var(--sa-l))}
+.page-head{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.page-head h2{font-size:19px;font-weight:600}
+.page-head .num{font-size:12px;color:var(--ink-3)}
+.page-head .sp{margin-left:auto;display:flex;gap:8px}
+
+.empty{border:1px dashed var(--line-2);border-radius:12px;padding:44px 24px;
+  display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
+.empty .mk{width:34px;height:34px;color:var(--line-3)}
+.empty b{font-size:15px;font-weight:600}
+.empty p{color:var(--ink-3);max-width:48ch;font-size:13px}
+
+/* ------------------------------------------------ home */
+.home{display:flex;flex-direction:column;gap:22px}
+.hero{display:flex;align-items:center;gap:20px;padding:26px;border-radius:14px;
+  background:var(--panel);border:1px solid var(--line);box-shadow:var(--sh-1)}
+.hero-mk{width:52px;height:52px;color:var(--ink);flex:none}
+.hero h1{font-size:24px;font-weight:620;letter-spacing:-.02em}
+.hero h1 span{color:var(--ink-3);font-weight:450}
+.hero p{color:var(--ink-2);font-size:13.5px;margin-top:3px;max-width:52ch}
+.homeacts{margin-left:auto;display:flex;gap:10px;flex:none}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(248px,1fr));gap:12px}
+/* min-width:0 because a grid item will not shrink below its own min-content,
+   and a file path set to never wrap has a min-content the width of the path.
+   Without it the card grew to fit the whole name and sat on top of its
+   neighbour. */
+.card{min-width:0;overflow:hidden;
+  appearance:none;text-align:left;border:1px solid var(--line);border-radius:12px;
+  background:var(--panel);padding:0;cursor:pointer;display:flex;flex-direction:column;
+  font-family:inherit;color:inherit;position:relative;
+  transition:border-color var(--fast) var(--ease),box-shadow var(--fast) var(--ease),
+             transform var(--fast) var(--ease)}
+.card:hover{border-color:var(--gold-line);box-shadow:var(--sh-2);transform:translateY(-1px)}
+.card:active{transform:translateY(0)}
+.card.gone{opacity:.62}
+.card .shot{aspect-ratio:16/9;background:var(--sunk);display:grid;place-items:center;
+  overflow:hidden;border-bottom:1px solid var(--line)}
+.card .shot img{width:100%;height:100%;object-fit:cover;display:block}
+.noshot{display:flex;flex-direction:column;align-items:center;gap:7px;color:var(--line-3)}
+.noshot .mk{width:26px;height:26px}
+.noshot small{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase}
+.card-b{padding:13px 15px 14px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.card-b b{font-size:15px;font-weight:600;min-width:0;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.card .path{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:100%}
+.cardfoot{display:flex;align-items:baseline;gap:6px;margin-top:4px}
+.cardfoot .num{font-size:17px;font-weight:600;color:var(--gold-ink)}
+.cardfoot span:nth-child(2){font-size:11px;color:var(--ink-3);
+  letter-spacing:.05em;text-transform:uppercase}
+.cardfoot .tag{margin-left:auto}
+/* Sits on the card rather than in its flow, so removing a scan from the list
+   never shifts the thing the pointer is over. */
+.card .drop-x{position:absolute;top:8px;right:8px;z-index:2;opacity:0;
+  background:var(--panel);border:1px solid var(--line-2);color:var(--ink-2);
+  width:24px;height:24px;border-radius:7px;display:grid;place-items:center;
+  cursor:pointer;transition:opacity var(--fast) var(--ease)}
+.card:hover .drop-x,.card .drop-x:focus-visible{opacity:1}
+.card .drop-x:hover{color:var(--warn);border-color:var(--warn)}
+
+/* The whole window is a drop target. Shown only while something is over it. */
+.dropveil{position:fixed;inset:0;z-index:var(--z-overlay);pointer-events:none;
+  display:grid;place-items:center;
+  background:color-mix(in srgb,var(--paper) 78%,transparent)}
+.dropveil div{border:2px dashed var(--gold);border-radius:16px;padding:28px 40px;
+  background:var(--panel);box-shadow:var(--sh-2);font-size:15px;font-weight:600;
+  color:var(--gold-ink)}
+
+/* ------------------------------------------------ reading a scan
+   A real bar, because the parser knows exactly how many points it has read of
+   how many. Nothing here is a fake indeterminate sweep. */
+.loading{flex:1;display:grid;place-items:center;background:var(--panel)}
+.loading .in{display:flex;flex-direction:column;align-items:center;gap:16px;
+  width:min(360px,78vw)}
+.loading .mk{width:56px;height:56px;color:var(--ink)}
+.loading b{font-size:14px;font-weight:600}
+.loading small{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.track{width:100%;height:3px;background:var(--line-2);border-radius:3px;overflow:hidden}
+.track i{display:block;height:100%;background:var(--gold);border-radius:3px;
+  transition:width 120ms linear}
+.loading .err{color:var(--warn);font-size:13px;max-width:46ch;text-align:center;
+  line-height:1.5}
+
+/* ------------------------------------------------ workspace */
+.ws{flex:1;min-height:0;display:grid;grid-template-columns:1fr 300px}
+.vp{position:relative;min-width:0;background:var(--vp);
+  border-right:1px solid var(--line);overflow:hidden}
+.vpcanvas{position:absolute;inset:0;touch-action:none}
+.vpcanvas canvas{display:block;width:100%;height:100%}
+.tool-select .vpcanvas,.vpcanvas.tool-select{cursor:crosshair}
+.vpcanvas.tool-measure{cursor:crosshair}
+
+/* The drag rectangle. Positioned by transform so dragging one never lays out
+   the page. */
+.marquee{position:absolute;top:0;left:0;display:none;pointer-events:none;
+  border:1px solid var(--gold);background:color-mix(in srgb,var(--gold) 14%,transparent);
+  border-radius:2px;will-change:transform}
+
+/* Measurement labels, drawn as real text over the canvas rather than as
+   textures in the scene, so they stay crisp at any zoom and can be clicked. */
+.labels{position:absolute;inset:0;pointer-events:none}
+.mlabel{position:absolute;top:0;left:0;pointer-events:auto;
+  font-family:var(--mono);font-size:11.5px;font-weight:600;white-space:nowrap;
+  padding:3px 8px;border-radius:7px;cursor:pointer;
+  background:var(--panel);color:var(--gold-ink);
+  border:1px solid var(--gold-line);box-shadow:var(--sh-1);
+  transition:background var(--fast) var(--ease),color var(--fast) var(--ease)}
+.mlabel:hover{background:var(--gold-wash)}
+.mlabel.on{background:var(--gold);color:var(--on-gold);border-color:var(--gold)}
+
+.vp .overlay{position:absolute;inset:0;pointer-events:none;
+  display:flex;flex-direction:column;justify-content:flex-end;
+  padding:14px calc(16px + var(--sa-r)) calc(14px + var(--sa-b)) calc(16px + var(--sa-l))}
+.vp .hud{position:absolute;left:112px;top:14px;right:16px;
+  font-family:var(--mono);font-size:11px;color:var(--ink-3);letter-spacing:.04em;
+  pointer-events:none}
+.vp .bar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px}
+/* Where you are looking from sits at the opposite end of the bar from what
+   you can do to the scan, because it is a different kind of decision. */
+.vp .vptoggle{pointer-events:auto;background:var(--panel);box-shadow:var(--sh-2)}
+.vp .acts{display:flex;flex-wrap:wrap;gap:8px;pointer-events:auto;
+  margin-left:auto;justify-content:flex-end}
+.vp .hint{pointer-events:none;align-self:flex-start;max-width:46ch;
+  font-size:12px;color:var(--ink-2);background:var(--panel);
+  border:1px solid var(--line);border-radius:9px;padding:7px 11px;
+  box-shadow:var(--sh-1);margin-bottom:8px}
+
+/* Tool rail: one mode per row, down the left edge of the viewport. */
+.rail{position:absolute;left:calc(14px + var(--sa-l));top:50%;
+  transform:translateY(-50%);z-index:2;
+  display:flex;flex-direction:column;gap:2px;padding:4px;background:var(--panel);
+  border:1px solid var(--line-2);border-radius:11px;box-shadow:var(--sh-2)}
+.rail button{appearance:none;border:0;background:transparent;color:var(--ink-2);
+  font-family:inherit;font-size:12px;font-weight:550;padding:8px 12px;border-radius:8px;
+  cursor:pointer;min-width:88px;text-align:left;
+  display:flex;align-items:center;gap:8px;
+  transition:background var(--fast) var(--ease),color var(--fast) var(--ease)}
+.rail button:hover{background:var(--sunk);color:var(--ink)}
+.rail button[aria-pressed="true"]{background:var(--gold);color:var(--on-gold)}
+.rail button:focus-visible{outline:2px solid var(--gold-ink);outline-offset:-2px}
+
+/* ------------------------------------------------ inspector */
+.insp{background:var(--rail);border-left:1px solid var(--line);overflow:auto;
+  padding:16px calc(16px + var(--sa-r)) calc(16px + var(--sa-b)) 16px;
+  display:flex;flex-direction:column;gap:16px}
+.insp h4{font-size:10.5px;font-weight:650;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--ink-3)}
+.grp{display:flex;flex-direction:column;gap:8px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;margin:0;font-size:12.5px}
+.kv dt{color:var(--ink-2)}
+.kv dd{margin:0;text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;
+  font-size:11.5px;color:var(--ink);min-width:0;overflow:hidden;text-overflow:ellipsis}
+.fld{display:flex;flex-direction:column;gap:5px}
+.fld label{font-size:12px;color:var(--ink-2)}
+.quiet{font-size:12px;color:var(--ink-3)}
+.btn.wide{width:100%;justify-content:center}
+.grp .btn.wide + .btn.wide{margin-top:6px}
+.sep{border-top:1px solid var(--line);padding-top:14px}
+
+/* One measurement in the list. The length is the thing being read, so it is
+   the mono column on the right and everything else gives way to it. */
+.mrow{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;
+  cursor:pointer;transition:background var(--fast) var(--ease)}
+.mrow:hover{background:var(--sunk)}
+.mrow.on{background:var(--gold-wash);box-shadow:inset 0 0 0 1px var(--gold-line)}
+.mrow input{flex:1;min-width:0;border:0;background:transparent;font-family:inherit;
+  font-size:12.5px;color:var(--ink);padding:2px 0;user-select:text}
+.mrow input:focus{outline:none;border-bottom:1px solid var(--gold)}
+.mrow .num{font-size:11.5px;color:var(--gold-ink);flex:none}
+.mrow .x{border:0;background:transparent;color:var(--ink-3);cursor:pointer;
+  width:22px;height:22px;border-radius:6px;display:grid;place-items:center;flex:none;
+  transition:color var(--fast) var(--ease),background var(--fast) var(--ease)}
+.mrow .x:hover{color:var(--warn);background:var(--warn-wash)}
+
+.warnbox{background:var(--warn-wash);border:1px solid var(--warn);border-radius:9px;
+  padding:11px 12px;display:flex;flex-direction:column;gap:9px}
+.warnbox p{font-size:12px;color:var(--warn);line-height:1.45}
+
+/* ------------------------------------------------ settings */
+.set{flex:1;min-height:0;display:grid;grid-template-columns:190px 1fr}
+.snav{border-right:1px solid var(--line);background:var(--rail);padding:14px 10px;
+  display:flex;flex-direction:column;gap:1px}
+.snav button{border:0;background:transparent;text-align:left;font-size:13px;font-weight:500;
+  color:var(--ink-2);padding:8px 11px;border-radius:7px;cursor:pointer;
+  transition:background var(--fast) var(--ease),color var(--fast) var(--ease)}
+.snav button:hover{background:var(--sunk);color:var(--ink)}
+.snav button[aria-current="true"]{background:var(--gold-wash);color:var(--gold-ink);font-weight:600}
+.sbody{overflow:auto;
+  padding:20px calc(26px + var(--sa-r)) calc(32px + var(--sa-b)) calc(26px + var(--sa-l))}
+.pset{max-width:680px;display:flex;flex-direction:column;gap:2px}
+.srow{display:grid;grid-template-columns:1fr auto;gap:22px;align-items:center;
+  padding:14px 0;border-bottom:1px solid var(--line)}
+.srow:last-child{border-bottom:0}
+.srow .t{display:flex;flex-direction:column;gap:3px}
+.srow b{font-size:13.5px;font-weight:550}
+.srow p{font-size:12px;color:var(--ink-3);max-width:58ch;line-height:1.5}
+
+/* ------------------------------------------------ toast */
+.toast{position:fixed;left:50%;bottom:calc(22px + var(--sa-b));transform:translateX(-50%);
+  background:var(--ink);color:var(--paper);font-size:13px;padding:9px 15px;border-radius:9px;
+  box-shadow:var(--sh-2);z-index:var(--z-toast);display:flex;align-items:center;gap:12px;
+  animation:pop var(--base) var(--ease) both}
+.toast.bad{background:var(--warn);color:#fff}
+.toast button{border:0;background:transparent;color:inherit;font:inherit;font-weight:650;
+  cursor:pointer;text-decoration:underline;padding:0}
+@keyframes pop{from{opacity:0;transform:translate(-50%,8px)}to{opacity:1;transform:translate(-50%,0)}}
+
+/* ------------------------------------------------ crash screen */
+.crash{height:100%;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:14px;padding:40px;background:var(--paper);text-align:center}
+.crash h2{font-size:18px;font-weight:620}
+.crash p{color:var(--ink-2);font-size:13.5px;max-width:52ch}
+.crash pre{font-family:var(--mono);font-size:11px;color:var(--warn);
+  background:var(--warn-wash);border:1px solid var(--warn);border-radius:9px;
+  padding:12px 14px;max-width:min(760px,90vw);max-height:240px;overflow:auto;
+  text-align:left;white-space:pre-wrap;user-select:text}
+
+/* ------------------------------------------------ screen transitions
+   Short, no overshoot, a whisper of scale so a screen settles into place
+   rather than sliding in. Changing screen is a once-a-minute action, which is
+   the only reason it is allowed to animate at all: nothing inside the
+   workspace does, because selecting and deleting happen hundreds of times an
+   hour and a delay there is felt as lag, not as polish. */
+.screen{flex:1;min-height:0;display:flex;flex-direction:column;
+  animation:screenIn 280ms var(--ease) both}
+@keyframes screenIn{
+  from{opacity:0;transform:translateY(7px) scale(.9945)}
+  to{opacity:1;transform:none}
+}
+.screen .page > *{animation:contentIn 340ms var(--ease) both;animation-delay:40ms}
+@keyframes contentIn{
+  from{opacity:0;transform:translateY(5px)}
+  to{opacity:1;transform:none}
+}
+.screen .page > *:nth-child(2){animation-delay:75ms}
+.screen .page > *:nth-child(3){animation-delay:100ms}
+.ws,.set{animation:contentIn 300ms var(--ease) both;animation-delay:30ms}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{transition-duration:1ms!important;animation-duration:1ms!important;
+    animation-iteration-count:1!important}
+  .screen,.screen .page > *,.ws,.set{animation:none!important}
+}
+
+/* ================================================================== screens
+   One interface, several shapes. The desktop layout above is the reference;
+   what follows adapts its geometry to a tablet and a phone without changing a
+   single colour, weight or rule of the design. It is here because the same
+   interface is meant to run in an Android WebView and an iOS WKWebView with a
+   shell around it and nothing else changed.
+
+   The order matters: touch sizing first, because it applies to any screen
+   with a finger on it, then progressively narrower widths. */
+
+/* ------------------------------------------------ touch
+   A mouse can hit a 24px target. A thumb cannot. Keyed to the pointer rather
+   than the width, so a touchscreen laptop and a tablet both get it. */
+@media (pointer:coarse){
+  .btn{padding:10px 16px;font-size:13.5px}
+  .btn.sm{padding:9px 13px;font-size:12.5px}
+  .seg button{padding:9px 14px;font-size:12.5px}
+  .lang button{padding:7px 12px;font-size:11.5px}
+  .rail button{padding:11px 14px;font-size:12.5px}
+  .snav button{padding:11px 12px}
+  .stepper button{width:38px;height:38px;font-size:17px}
+  .stepper input{height:38px;width:64px;font-size:13.5px}
+  .stepper .unit{line-height:38px}
+  .sw{width:46px;height:28px}
+  .sw::after{width:22px;height:22px}
+  .sw[aria-checked="true"]::after{transform:translateX(18px)}
+  .mrow{padding:10px 8px}
+  .mlabel{padding:5px 10px;font-size:12px}
+  /* Nothing hover-only may be the only way to reach something. */
+  .card:hover{transform:none}
+  .card .drop-x{opacity:1}
+}
+
+/* ------------------------------------------------ tablet */
+@media (max-width:1100px){
+  .ws{grid-template-columns:1fr minmax(250px,282px)}
+  .set{grid-template-columns:172px 1fr}
+  .page{padding:20px 20px 30px}
+  .sbody{padding:18px 20px 28px}
+  .hero{padding:22px}
+}
+
+/* ------------------------------------------------ viewport overlay
+   The rail sits down one edge and the actions along the bottom. That holds
+   while there is width for both; below it they collide, which happens long
+   before the whole layout needs to stack, because a phone on its side is
+   915px wide and still only leaves about 620px of viewport. So the trigger is
+   the space available, not the class of device. */
+@media (max-width:1100px), (max-height:620px){
+  .vp .overlay{gap:8px;
+    padding:10px calc(10px + var(--sa-r)) calc(10px + var(--sa-b)) calc(10px + var(--sa-l))}
+  .vp .acts{gap:6px;flex-basis:100%}
+  /* The rail runs across the top instead of down the side. */
+  .rail{left:calc(10px + var(--sa-l));right:calc(10px + var(--sa-r));
+    top:10px;bottom:auto;transform:none;flex-direction:row;justify-content:center;gap:3px}
+  .rail button{min-width:0;flex:1 1 auto;justify-content:center;text-align:center}
+  /* The reading clears the rail while the rail is across the top. */
+  .vp .hud{left:calc(10px + var(--sa-l));right:calc(10px + var(--sa-r));top:58px}
+  .vp .hint{max-width:none}
+}
+
+/* ------------------------------------------------ compact
+   Below this the two-column workspace stops working: 300px of inspector out of
+   a 400px screen leaves a viewport too narrow to read a scan in. The panels
+   stack instead, the viewport takes the top half, and the inspector scrolls
+   under it. */
+@media (max-width:820px){
+  /* min-height, not height: the island inset is padding on top of it. */
+  .titlebar{height:auto;min-height:calc(46px + var(--sa-t));gap:9px;
+    padding:calc(7px + var(--sa-t)) calc(12px + var(--sa-r)) 7px calc(12px + var(--sa-l))}
+  .page{padding:16px calc(14px + var(--sa-r)) calc(26px + var(--sa-b)) calc(14px + var(--sa-l))}
+  .page-head{flex-wrap:wrap;gap:8px}
+  .page-head h2{font-size:17px}
+
+  .ws{grid-template-columns:1fr;grid-template-rows:minmax(240px,52vh) minmax(0,1fr)}
+  .vp{border-right:0;border-bottom:1px solid var(--line)}
+  .insp{border-left:0;
+    padding:14px calc(14px + var(--sa-r)) calc(14px + var(--sa-b)) calc(14px + var(--sa-l))}
+  /* Stacked, the panel is as wide as the screen. A label at one edge and its
+     number at the other stops being a pair, so the readings keep a column. */
+  .insp .kv,.insp .warnbox,.insp .fld{max-width:520px}
+
+  .set{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}
+  .snav{flex-direction:row;overflow-x:auto;border-right:0;gap:4px;
+    border-bottom:1px solid var(--line);
+    padding:8px calc(10px + var(--sa-r)) 8px calc(10px + var(--sa-l))}
+  .snav button{white-space:nowrap;flex:none}
+  .sbody{padding:16px calc(14px + var(--sa-r)) calc(26px + var(--sa-b)) calc(14px + var(--sa-l))}
+  .srow{grid-template-columns:1fr;gap:10px;align-items:start}
+  .srow > *:not(.t){justify-self:start}
+  .srow p{max-width:none}
+
+  .hero{flex-direction:column;align-items:flex-start;gap:14px;padding:20px}
+  .homeacts{margin-left:0;flex-wrap:wrap}
+  .cards{grid-template-columns:1fr}
+  .textin{width:100%;max-width:100%}
+  .toast{left:calc(12px + var(--sa-l));right:calc(12px + var(--sa-r));
+    transform:none;justify-content:center}
+  @keyframes pop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+}
+
+/* ------------------------------------------------ phone
+   The brand gives way to the thing being worked on. */
+@media (max-width:520px){
+  .titlebar b{display:none}
+  .titlebar .crumb{font-size:12.5px;color:var(--ink-2)}
+  .titlebar .right{gap:6px}
+  .page{padding:14px calc(12px + var(--sa-r)) calc(24px + var(--sa-b)) calc(12px + var(--sa-l))}
+  .ws{grid-template-rows:minmax(220px,48vh) minmax(0,1fr)}
+  .insp{gap:14px;
+    padding:12px calc(12px + var(--sa-r)) calc(12px + var(--sa-b)) calc(12px + var(--sa-l))}
+  .hero h1{font-size:20px}
+  .empty{padding:32px 18px}
+  .vp .acts{justify-content:stretch}
+  .vp .acts .btn{flex:1 1 auto;justify-content:center}
+}
+
+/* ------------------------------------------------ short and wide
+   A phone on its side has plenty of width and almost no height, so stacking is
+   exactly wrong there: it would leave a 120px viewport. Side by side returns,
+   with the inspector as a narrow column. */
+@media (max-height:560px) and (orientation:landscape){
+  .ws{grid-template-columns:1fr minmax(212px,32%);grid-template-rows:minmax(0,1fr)}
+  .vp{border-right:1px solid var(--line);border-bottom:0}
+  .insp{border-left:1px solid var(--line);border-top:0}
+  .titlebar{min-height:calc(40px + var(--sa-t));
+    padding:calc(4px + var(--sa-t)) calc(10px + var(--sa-r)) 4px calc(10px + var(--sa-l))}
+  .page{padding:12px calc(14px + var(--sa-r)) calc(20px + var(--sa-b)) calc(14px + var(--sa-l))}
+}

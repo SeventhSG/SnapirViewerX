@@ -1,0 +1,93 @@
+{
+  "name": "snapir-viewer-x",
+  "productName": "Snapir Viewer X",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Full-colour LiDAR scans from iPhone and iPad, cleaned and measured",
+  "author": {
+    "name": "Snapir Design"
+  },
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "concurrently -k -n vite,electron -c cyan,yellow \"vite\" \"wait-on tcp:5174 && cross-env SNAPIR_DEV=1 electron .\"",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "esbuild tools/selftest.ts --bundle --platform=node --format=esm --outfile=tools/.selftest.mjs --log-level=warning && node tools/.selftest.mjs",
+    "dist": "npm run build && electron-builder --win nsis",
+    "release": "npm run build && electron-builder --win nsis --publish always"
+  },
+  "dependencies": {
+    "@phosphor-icons/react": "^2.1.7",
+    "electron-updater": "^6.3.9",
+    "fflate": "^0.8.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/three": "^0.169.0",
+    "@vitejs/plugin-react": "^4.3.3",
+    "concurrently": "^9.0.1",
+    "cross-env": "^7.0.3",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.snapirdesign.viewerx",
+    "productName": "Snapir Viewer X",
+    "directories": {
+      "output": "release",
+      "buildResources": "buildResources"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "SeventhSG",
+      "repo": "SnapirViewerX"
+    },
+    "files": [
+      "dist/**",
+      "electron/**",
+      "package.json"
+    ],
+    "fileAssociations": [
+      {
+        "ext": "svxp",
+        "name": "Snapir Viewer X project",
+        "description": "Snapir Viewer X project",
+        "role": "Editor"
+      },
+      {
+        "ext": "ply",
+        "name": "Polygon file format point cloud",
+        "description": "Point cloud",
+        "role": "Viewer"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "buildResources/icon.ico",
+      "artifactName": "SnapirViewerX-${version}-setup.${ext}",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "Snapir Viewer X",
+      "createDesktopShortcut": true,
+      "installerIcon": "buildResources/icon.ico",
+      "uninstallerIcon": "buildResources/icon.ico",
+      "differentialPackage": false
+    }
+  },
+  "allowScripts": {
+    "electron@33.4.11": true,
+    "esbuild@0.21.5": true
+  }
+}
