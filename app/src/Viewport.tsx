@@ -47,7 +47,17 @@ export type ViewMode = "outside" | "inside";
    before anything uses them, because a scan measured in millimetres would
    otherwise take an hour to cross. */
 const EYE_METRES = 1.6;      // eye height of someone standing
-const SPEED_METRES = 2.4;    // an unhurried walk, not a sprint
+/**
+ * Metres a second.
+ *
+ * Design X walks a solved room at 2.4, which is a brisk walk and right when
+ * the room is a clean solid you are inspecting. In a raw scan it is too fast:
+ * the whole point of being in there is to look closely at surfaces a metre
+ * away, and at 2.4 a single tap of the key crosses the room. 1.2 is a slow
+ * walk, and Shift gives back the old speed for crossing a large building.
+ */
+const SPEED_METRES = 1.2;
+const SPRINT = 2.5;          // with Shift held
 const LOOK_RATE = 0.0032;    // radians per pixel dragged
 const PITCH_LIMIT = 1.35;    // just short of straight up or straight down
 
@@ -63,6 +73,8 @@ export interface ViewportProps {
   pointSize: number;
   /** Points shrink with distance instead of staying a fixed size on screen. */
   attenuate: boolean;
+  /** Frame rate and points drawn, in the corner of the viewport. */
+  showStats: boolean;
   dark: boolean;
   upAxis: UpAxis;
   measurements: Measurement[];
@@ -98,13 +110,6 @@ uniform vec3  uSelected;
 
 varying vec3 vColor;
 
-// The exact piecewise sRGB transfer function, not pow(c, 2.2). The two differ
-// most in the darkest few percent, which on a scan is the shadowed half of
-// every room.
-vec3 srgbToLinear(vec3 c) {
-  return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
-}
-
 void main() {
   float deleted  = mod(astate, 2.0);
   float selected = mod(floor(astate / 2.0), 2.0);
@@ -121,7 +126,12 @@ void main() {
     return;
   }
 
-  vColor = mix(srgbToLinear(acolor), uSelected, selected);
+  // Straight through. The bytes in the file are what the camera encoded, the
+  // framebuffer is left in the same space, and the monitor decodes it: the
+  // colour on screen is the colour in the scan. Converting to linear here and
+  // back on output would be the same round trip at the cost of a pow per
+  // vertex, which at fifty million of them is not free.
+  vColor = mix(acolor, uSelected, selected);
 
   float size = uSize * uPixelRatio;
   // -mv.z is view-space depth. Guarded because a point exactly on the eye
@@ -162,6 +172,13 @@ interface Rig {
   stateAttr: THREE.BufferAttribute | null;
   lines: THREE.Group;
   labels: HTMLDivElement;
+  /** Frame rate and points drawn, written straight into the DOM rather than
+   *  through React: a reading that updates four times a second must not
+   *  re-render an interface holding fifty million points. */
+  stats: HTMLDivElement;
+  frames: number;
+  statsAt: number;
+  drawn: number;
   /** Object-to-clip, rebuilt each time it is needed rather than cached. */
   clip: THREE.Matrix4;
   raf: number;
@@ -179,7 +196,32 @@ interface Rig {
   floorY: number;
   eyeHeight: number;
   speed: number;
+
+  /** When the camera last changed, so the decimation knows it is moving. */
+  lastMove: number;
+  /** Whether the previous frame was drawn decimated. */
+  wasMoving: boolean;
+  /** The point size the operator chose, before any decimation grows it. */
+  baseSize: number;
 }
+
+/* ----------------------------------------------------------- decimation
+   How many points get drawn while the camera is moving.
+
+   The whole cloud is drawn the moment it settles, so the picture being read
+   is always the whole picture; this only applies to the frames in between,
+   where the eye cannot resolve individual points anyway because they are
+   sliding across the screen.
+
+   The buffer is shuffled on import (see shuffleCloud), so the first N points
+   are a uniform sample of the scan rather than the first corner of it.
+
+   Four million is where a mid-range card holds sixty hertz at a sensible
+   point size. Below about that there is nothing to gain by decimating, so
+   small scans are never touched and behave exactly as before. */
+const MOVING_BUDGET = 4_000_000;
+/** How long after the last camera change the full cloud is drawn again. */
+const SETTLE_MS = 160;
 
 export default function Viewport(props: ViewportProps) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -203,8 +245,17 @@ export default function Viewport(props: ViewportProps) {
       alpha: false,
       powerPreference: "high-performance",
     });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    // Left in the space the file is already in, and three.js told not to
+    // convert anything on the way through, so a colour set from a hex string
+    // means that hex and a byte from the scan means that byte.
+    THREE.ColorManagement.enabled = false;
+    renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+
+    // A point is drawn at uSize CSS pixels, so on a 2x display every point
+    // covers four times the fragments. At fifty million points that is the
+    // whole frame budget spent on fill, so the ratio is capped at 1.5 rather
+    // than the usual 2. Lines and labels are unaffected: the labels are DOM.
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     host.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
@@ -227,6 +278,10 @@ export default function Viewport(props: ViewportProps) {
     labels.className = "labels";
     host.appendChild(labels);
 
+    const stats = document.createElement("div");
+    stats.className = "stats";
+    host.appendChild(stats);
+
     // Yaw then pitch, which is what a head does. The default XYZ order rolls
     // the horizon as soon as you look up and turn at the same time.
     camera.rotation.order = "YXZ";
@@ -235,6 +290,8 @@ export default function Viewport(props: ViewportProps) {
       renderer, scene, camera, controls, pivot,
       points: null, material: null, stateAttr: null,
       lines, labels, clip: new THREE.Matrix4(), raf: 0, needsRender: true,
+      stats, frames: 0, statsAt: 0, drawn: 0,
+      lastMove: 0, wasMoving: false, baseSize: 2,
       inside: false, yaw: 0, pitch: 0, keys: new Set(),
       lastFrame: 0, floorY: 0, eyeHeight: 1.6, speed: 2.4,
     };
@@ -246,9 +303,10 @@ export default function Viewport(props: ViewportProps) {
     const down = (e: KeyboardEvent) => {
       if (!rig.inside) return;
       const k = e.key.toLowerCase();
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.isContentEditable)) return;
+      if (k === "shift") { rig.keys.add(k); return; }
       if ("wasdqe".includes(k) && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        const el = e.target as HTMLElement | null;
-        if (el && (el.tagName === "INPUT" || el.isContentEditable)) return;
         rig.keys.add(k);
         e.preventDefault();
       }
@@ -292,7 +350,19 @@ export default function Viewport(props: ViewportProps) {
       // OrbitControls is left disabled while inside, so its damping cannot
       // fight the walk for the camera.
       const moved = rig.inside ? walk(rig, dt) : controls.update();
+      if (moved) rig.lastMove = now;
+
+      // The settling frame has to be asked for, because nothing else is going
+      // to: the camera has stopped, so no event will arrive to trigger the
+      // redraw that puts the missing points back.
+      const moving = now - rig.lastMove < SETTLE_MS;
+      if (moving !== rig.wasMoving) {
+        rig.wasMoving = moving;
+        rig.needsRender = true;
+      }
+
       if (moved || rig.needsRender) {
+        applyDetail(rig, moving);
         // Before the render, not after. The end markers are unit spheres sized
         // from the camera distance here, so scaling them after drawing left
         // the frame they first appeared on showing a one-metre ball, and
@@ -301,6 +371,26 @@ export default function Viewport(props: ViewportProps) {
         syncOverlay(rig, propsRef.current);
         renderer.render(scene, camera);
         rig.needsRender = false;
+        rig.frames++;
+      }
+
+      // Counted over a window rather than from one frame, because a single
+      // frame time is mostly noise and the number is meant to be read.
+      if (propsRef.current.showStats) {
+        if (!rig.statsAt) rig.statsAt = now;
+        else if (now - rig.statsAt >= 400) {
+          const fps = (rig.frames * 1000) / (now - rig.statsAt);
+          const line = `${fps.toFixed(0)} fps  ${(rig.drawn / 1e6).toFixed(2)}M drawn`;
+          rig.stats.textContent = line;
+          // Also to the log, so a slow machine can be diagnosed from a file
+          // rather than from someone reading a corner of their own screen.
+          // Only while the readout is on, which is off by default.
+          console.log(`[perf] ${line}`);
+          rig.frames = 0;
+          rig.statsAt = now;
+        }
+      } else if (rig.stats.textContent) {
+        rig.stats.textContent = "";
       }
     };
     rig.raf = requestAnimationFrame(loop);
@@ -370,6 +460,8 @@ export default function Viewport(props: ViewportProps) {
     rig.points = points;
     rig.material = material;
     rig.stateAttr = stateAttr;
+    rig.baseSize = props.pointSize;
+    rig.drawn = cloud.count;
 
     frameCloud(rig, cloud, false);
     rig.needsRender = true;
@@ -387,9 +479,12 @@ export default function Viewport(props: ViewportProps) {
   useEffect(() => {
     const rig = rigRef.current;
     if (!rig?.material) return;
+    rig.baseSize = props.pointSize;
     rig.material.uniforms.uSize.value = props.pointSize;
     rig.material.uniforms.uRound.value = props.pointSize >= 4 ? 1 : 0;
     rig.material.uniforms.uAttenuate.value = props.attenuate ? 1 : 0;
+    // Force the next frame to re-apply the growth factor against the new size.
+    rig.drawn = -1;
     rig.needsRender = true;
   }, [props.pointSize, props.attenuate]);
 
@@ -529,6 +624,7 @@ export default function Viewport(props: ViewportProps) {
     const look = lookRef.current;
     const rig = rigRef.current;
     if (look && rig) {
+      rig.lastMove = performance.now();
       rig.yaw -= (e.clientX - look.x) * LOOK_RATE;
       // Stopped short of straight up and straight down, where the horizon
       // flips and there is no way to tell which way you are facing.
@@ -633,6 +729,33 @@ export default function Viewport(props: ViewportProps) {
 }
 
 /* ------------------------------------------------------------------ helpers */
+
+/**
+ * Draw the whole cloud, or a sample of it while the camera is moving.
+ *
+ * The sample is the front of the buffer, which is a fair one because the
+ * buffer was shuffled on import. Points are enlarged to compensate, by the
+ * square root of the fraction dropped, so that the scan keeps roughly the
+ * same coverage on screen instead of thinning out as you turn it. The growth
+ * is capped: past about two and a half times, a point cloud stops reading as
+ * a surface and starts reading as confetti.
+ */
+function applyDetail(rig: Rig, moving: boolean) {
+  const points = rig.points;
+  const material = rig.material;
+  if (!points || !material) return;
+
+  const total = points.geometry.getAttribute("position").count;
+  const want = moving && total > MOVING_BUDGET ? MOVING_BUDGET : total;
+  if (rig.drawn === want) return;
+
+  points.geometry.setDrawRange(0, want);
+  rig.drawn = want;
+
+  const grow = Math.min(Math.sqrt(total / want), 2.5);
+  material.uniforms.uSize.value = rig.baseSize * grow;
+  material.uniforms.uRound.value = rig.baseSize * grow >= 4 ? 1 : 0;
+}
 
 function disposeCloud(rig: Rig) {
   if (!rig.points) return;
@@ -753,11 +876,15 @@ function walk(rig: Rig, dt: number): boolean {
   // Forward at yaw 0 is -Z, which is where a three.js camera looks.
   const dx = -sin * fwd + cos * side;
   const dz = -cos * fwd - sin * side;
-  const len = Math.hypot(dx, dz) || 1;
-  const step = rig.speed * dt;
+  const step = rig.speed * dt * (rig.keys.has("shift") ? SPRINT : 1);
 
-  rig.camera.position.x += (dx / len) * step * (fwd || side ? 1 : 0);
-  rig.camera.position.z += (dz / len) * step * (fwd || side ? 1 : 0);
+  if (fwd || side) {
+    // Normalised, so walking forward and sideways at once is not faster than
+    // walking forward.
+    const len = Math.hypot(dx, dz) || 1;
+    rig.camera.position.x += (dx / len) * step;
+    rig.camera.position.z += (dz / len) * step;
+  }
   rig.camera.position.y += lift * step;
   return true;
 }

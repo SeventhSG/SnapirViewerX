@@ -18,7 +18,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { PointCloud } from "../src/cloud";
-import { readPly, writePly } from "../src/ply";
+import { readPly, shuffleCloud, writePly } from "../src/ply";
 import { looksLikeSvxp, readSvxp, writeSvxp } from "../src/svxp";
 import { fromMetres } from "../src/units";
 
@@ -217,6 +217,21 @@ function writeSplatPly(file: string, pts: Pt[]) {
   writeFileSync(file, Buffer.concat([head, body]));
 }
 
+/** A handful of points spread along x, for the bounds-cache checks. */
+function makeCloudForBounds(): PointCloud {
+  const n = 1000;
+  const positions = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) positions[i * 3] = i / (n - 1);
+  return new PointCloud({
+    positions,
+    colors: new Uint8Array(n * 3).fill(180),
+    count: n,
+    offset: [0, 0, 0], min: [0, 0, 0], max: [1, 0, 0], hasColor: true,
+    sourceUnit: "m",
+    source: { name: "bounds", ref: "x", originalCount: n, encoding: "test", comments: [] },
+  });
+}
+
 /* -------------------------------------------------------------- the tests */
 
 function main() {
@@ -294,6 +309,78 @@ function main() {
     dr <= 1 && dg <= 1 && db <= 1,
     `got ${splat.colors[0]},${splat.colors[1]},${splat.colors[2]} `
     + `wanted ${splatPts[0].r},${splatPts[0].g},${splatPts[0].b}`);
+
+  /* ------------------------------------------------------------- shuffling
+     The decimation while the camera moves draws a prefix of the buffer, which
+     is only a fair sample because the buffer was scrambled on import. Two
+     things have to hold: no point may be invented or lost, and every point
+     must keep its own colour. */
+  section("import shuffle");
+  {
+    const n = 40000;
+    const pos = new Float32Array(n * 3);
+    const col = new Uint8Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      // Colour derived from position, so a mismatch after shuffling is
+      // detectable point by point rather than only in aggregate.
+      pos[i * 3] = i; pos[i * 3 + 1] = i * 2; pos[i * 3 + 2] = i * 3;
+      col[i * 3] = i & 255; col[i * 3 + 1] = (i >> 8) & 255; col[i * 3 + 2] = 7;
+    }
+
+    shuffleCloud(pos, col, n);
+
+    let moved = 0, mismatched = 0;
+    const seen = new Uint8Array(n);
+    for (let i = 0; i < n; i++) {
+      const id = pos[i * 3];
+      if (id !== i) moved++;
+      if (!Number.isInteger(id) || id < 0 || id >= n) { mismatched++; continue; }
+      seen[id] = 1;
+      if (pos[i * 3 + 1] !== id * 2 || pos[i * 3 + 2] !== id * 3) mismatched++;
+      if (col[i * 3] !== (id & 255) || col[i * 3 + 1] !== ((id >> 8) & 255)
+        || col[i * 3 + 2] !== 7) mismatched++;
+    }
+    check("every point survived exactly once",
+      seen.every((v) => v === 1), `${seen.filter((v) => !v).length} missing`);
+    check("colour stayed with its own point", mismatched === 0,
+      `${mismatched} mismatched`);
+    check("the order actually changed", moved > n * 0.9, `${moved} of ${n} moved`);
+
+    // Deterministic, so two machines produce the same file and a fixture
+    // regenerated tomorrow is the same fixture.
+    const pos2 = new Float32Array(n * 3);
+    const col2 = new Uint8Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      pos2[i * 3] = i; pos2[i * 3 + 1] = i * 2; pos2[i * 3 + 2] = i * 3;
+      col2[i * 3] = i & 255; col2[i * 3 + 1] = (i >> 8) & 255; col2[i * 3 + 2] = 7;
+    }
+    shuffleCloud(pos2, col2, n);
+    check("the shuffle is deterministic", pos2.every((v, i) => v === pos[i]));
+  }
+
+  /* --------------------------------------------------------- bounds cache
+     The box is cached against the geometry and not against the revision,
+     because a marquee drag changes the revision hundreds of times and can
+     never move a point. Getting this wrong is invisible: the number on
+     screen is right, and the scan is walked twice for every selection. */
+  section("bounds cache");
+  {
+    const c = makeCloudForBounds();
+    const first = c.liveBounds()!;
+    c.selectWhere((x) => x > 0.5);
+    const afterSelect = c.liveBounds()!;
+    check("selecting returns the identical cached object",
+      afterSelect === first);
+
+    c.deleteSelected();
+    const afterDelete = c.liveBounds()!;
+    check("deleting recomputes the box", afterDelete !== first);
+    check("and the box actually shrank", afterDelete.max[0] < first.max[0],
+      `${afterDelete.max[0]} vs ${first.max[0]}`);
+
+    c.undo();
+    check("undo recomputes it again", c.liveBounds()!.max[0] === first.max[0]);
+  }
 
   /* ------------------------------------------------------------- picking
      Against a hand-built clip matrix rather than a camera, so the expected

@@ -46,8 +46,8 @@ const en = {
   /* where you are looking from */
   viewOutside: "Outside", viewInside: "Inside",
   insideHint:
-    "W A S D to walk, Q and E to drop and rise. Drag with the middle button "
-    + "to look around. Fit puts you back in the middle.",
+    "W A S D to walk, Shift to go faster, Q and E to drop and rise. Drag with "
+    + "the middle button to look around. Fit puts you back in the middle.",
 
   /* viewport actions */
   fit: "Fit", undo: "Undo", redo: "Redo",
@@ -62,6 +62,7 @@ const en = {
   colourYes: "per point", colourNo: "none in the file",
   sourceFormat: "Format", readIn: "Read in",
   ofTotal: "of", history: "History", steps: "steps",
+  shownIn: "Lengths shown in",
   noMeasurements: "No measurements yet",
   measureName: "Name", measureLength: "Length",
   deleteMeasurement: "Delete measurement",
@@ -91,6 +92,10 @@ const en = {
   pointSizeSub: "Pixels. Larger closes the gaps on a sparse scan and costs frame rate.",
   attenuate: "Shrink distant points",
   attenuateSub: "Points take their size from distance, the way a photograph does.",
+  showStats: "Show frame rate",
+  showStatsSub:
+    "Frames a second and how many points are being drawn, in the corner of "
+    + "the viewport. Useful for finding the point size a big scan can afford.",
   upAxis: "Up axis", upAxisY: "Y up", upAxisZ: "Z up",
   upAxisSub:
     "Phone scanners write Y up. Scans that have been through survey software "
@@ -155,8 +160,8 @@ const tr: Record<Key, string> = {
 
   viewOutside: "Dışarıdan", viewInside: "İçeriden",
   insideHint:
-    "Yürümek için W A S D, alçalıp yükselmek için Q ve E. Etrafa bakmak için "
-    + "orta tuşla sürükle. Sığdır seni ortaya geri koyar.",
+    "Yürümek için W A S D, hızlanmak için Shift, alçalıp yükselmek için Q ve "
+    + "E. Etrafa bakmak için orta tuşla sürükle. Sığdır seni ortaya geri koyar.",
 
   fit: "Sığdır", undo: "Geri al", redo: "Yinele",
   deleteSelected: "Sil", keepSelected: "Yalnızca bunları tut",
@@ -169,6 +174,7 @@ const tr: Record<Key, string> = {
   colourYes: "nokta başına", colourNo: "dosyada yok",
   sourceFormat: "Biçim", readIn: "Okuma süresi",
   ofTotal: "/", history: "Geçmiş", steps: "adım",
+  shownIn: "Uzunluk birimi",
   noMeasurements: "Henüz ölçüm yok",
   measureName: "Ad", measureLength: "Uzunluk",
   deleteMeasurement: "Ölçümü sil",
@@ -196,6 +202,10 @@ const tr: Record<Key, string> = {
   pointSizeSub: "Piksel. Büyütmek seyrek taramadaki boşlukları kapatır, kare hızına mal olur.",
   attenuate: "Uzak noktaları küçült",
   attenuateSub: "Noktalar boyutunu mesafeden alır, fotoğraftaki gibi.",
+  showStats: "Kare hızını göster",
+  showStatsSub:
+    "Saniyedeki kare sayısı ve çizilen nokta sayısı, görünümün köşesinde. "
+    + "Büyük bir taramanın kaldırabileceği nokta boyutunu bulmak için.",
   upAxis: "Yukarı ekseni", upAxisY: "Y yukarı", upAxisZ: "Z yukarı",
   upAxisSub:
     "Telefon tarayıcıları Y yukarı yazar. Ölçüm yazılımından geçmiş taramalar "

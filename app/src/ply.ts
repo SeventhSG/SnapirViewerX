@@ -616,6 +616,55 @@ function readLineNumbers(
   return at;
 }
 
+/* ---------------------------------------------------------------- shuffling
+   Why a point cloud gets its order scrambled on the way in.
+
+   Drawing fifty million points every frame is not something a mid-range card
+   does at sixty hertz, so while the camera is moving the viewer draws only a
+   prefix of the buffer. That is only honest if a prefix is a fair sample of
+   the whole scan, and in file order it is the opposite: a scan is written in
+   the order it was captured, so the first two million points are one corner
+   of the room and the rest of the building simply vanishes while you turn.
+
+   Shuffling once on import makes every prefix a uniform random sample, which
+   costs one pass and no extra memory. An index buffer would avoid reordering
+   but adds four bytes a point, which at fifty million is another 200 MB.
+
+   Only raw imports are shuffled. A project stores its own order, and the
+   indices in its deleted list and its measurements refer to that order, so
+   reshuffling a reopened project would silently point them at other points. */
+
+/** A cheap, well-distributed generator. `Math.random` fifty million times is
+ *  a second of its own, and nothing here needs cryptographic quality. */
+function xorshift(seed: number): () => number {
+  let x = seed | 0 || 0x9e3779b9;
+  return () => {
+    x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
+    return (x >>> 0) / 4294967296;
+  };
+}
+
+/** Fisher-Yates over the two parallel arrays, in place. Colour travels with
+ *  its own point: swapping one and not the other would repaint the scan. */
+export function shuffleCloud(
+  positions: Float32Array, colors: Uint8Array, count: number, seed = 0x5eed1e,
+): void {
+  const rnd = xorshift(seed);
+  for (let i = count - 1; i > 0; i--) {
+    const j = (rnd() * (i + 1)) | 0;
+    if (i === j) continue;
+    const a = i * 3, b = j * 3;
+
+    let t = positions[a]; positions[a] = positions[b]; positions[b] = t;
+    t = positions[a + 1]; positions[a + 1] = positions[b + 1]; positions[b + 1] = t;
+    t = positions[a + 2]; positions[a + 2] = positions[b + 2]; positions[b + 2] = t;
+
+    let u = colors[a]; colors[a] = colors[b]; colors[b] = u;
+    u = colors[a + 1]; colors[a + 1] = colors[b + 1]; colors[b + 1] = u;
+    u = colors[a + 2]; colors[a + 2] = colors[b + 2]; colors[b + 2] = u;
+  }
+}
+
 /* ------------------------------------------------------------------ writing
    Binary little endian, x/y/z float32 and red/green/blue uchar. The one
    layout every tool reads, and the one this app's own export needs. */

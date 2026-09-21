@@ -3,7 +3,8 @@
 [![Release](https://img.shields.io/github/v/release/SeventhSG/SnapirViewerX?display_name=tag&sort=semver&color=A87A26&label=release)](https://github.com/SeventhSG/SnapirViewerX/releases/latest)
 [![Download](https://img.shields.io/github/downloads/SeventhSG/SnapirViewerX/total?color=A87A26&label=downloads)](https://github.com/SeventhSG/SnapirViewerX/releases/latest)
 [![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-26262A)](https://github.com/SeventhSG/SnapirViewerX/releases/latest)
-[![Tests](https://img.shields.io/badge/self%20test-56%20checks-177A4E)](app/tools/selftest.ts)
+[![Tests](https://img.shields.io/badge/self%20test-64%20checks-177A4E)](app/tools/selftest.ts)
+[![Scale](https://img.shields.io/badge/measured-50M%20points%20at%2075fps-A87A26)](#how-big-a-scan-it-will-take)
 [![Offline](https://img.shields.io/badge/network%20use-none-177A4E)](#your-scan-stays-on-your-machine)
 
 **Full-colour LiDAR scans from an iPhone or iPad, cleaned and measured on a
@@ -116,8 +117,10 @@ numbers apart and never confuses them:
 - **The display unit** is a preference: mm, cm, m, inches or feet. Changing it
   changes nothing in the scan.
 
-Both are on screen, and the source unit sits in the inspector next to the
-measurements it governs rather than buried in a settings page.
+Both are in the inspector, one under the other, and the display unit is in
+**Settings, Units** as well because it is a preference that outlives the scan.
+Changing it changes every length at once: the measurement labels in the
+viewport, the measurement list, and the scan's size and diagonal.
 
 ---
 
@@ -145,7 +148,8 @@ Design X.
 
 | | |
 |---|---|
-| `W` `A` `S` `D` | Walk |
+| `W` `A` `S` `D` | Walk, at 1.2 m/s |
+| `Shift` | Faster, for crossing a large building |
 | `Q` `E` | Drop and rise |
 | **Middle drag** | Look around |
 | **Fit** | Back to the middle of the room |
@@ -196,7 +200,7 @@ origin it could reach even if something tried.
 
 ## Install
 
-Download **`SnapirViewerX-0.1.0-setup.exe`** from
+Download **`SnapirViewerX-0.2.0-setup.exe`** from
 **[the latest release](https://github.com/SeventhSG/SnapirViewerX/releases/latest)**
 and run it. Windows 10 or 11, 64-bit.
 
@@ -209,12 +213,41 @@ updates itself from this repository's releases in the background.
 
 ### How big a scan it will take
 
-The whole cloud is held in memory and drawn in one call, with no streaming and
-no level of detail. On an ordinary machine that is comfortable to about
-**20 million points**, which is a large flat. Beyond that it will still open
-if the memory is there, but it stops being pleasant to turn.
+**50 million points**, measured rather than estimated. On a GTX 1660 Super
+with 16 GB of memory, a 50,000,000 point scan reads in 10.2 s and turns at
+75 fps, which is this monitor's refresh rate and therefore the ceiling rather
+than the limit.
 
-A 1.8 million point scan reads in about 0.2 seconds.
+| Scan | Points | Read | Turning | At rest |
+|---|---|---|---|---|
+| Room, synthetic | 1,803,990 | 0.2 s | 75 fps | 0 fps |
+| Building, SiteScape | 4,879,915 | 1.4 s | 75 fps | 0 fps |
+| Building, synthetic | 50,000,000 | 10.2 s | 75 fps | 0 fps |
+
+Two things make that work.
+
+**The whole cloud is drawn only when the camera is still.** While you are
+turning or walking, a sample of four million points is drawn instead, enlarged
+slightly so the scan keeps its coverage. The moment you stop, the full cloud
+is drawn once. You are always reading a complete picture and never waiting for
+one. The sample is the front of the buffer, which is a fair sample because the
+point order is shuffled on import: without that, the first four million points
+would be one corner of the building and the rest of it would disappear every
+time you moved.
+
+**Nothing is drawn when nothing changes.** At rest the viewport renders zero
+frames a second. A viewer sits open and untouched for long stretches, and it
+should not spend a laptop battery redrawing a still picture.
+
+Selection is not affected by any of this. A rectangle always tests every point
+in the scan, drawn or not, so what you cut is never limited to what happened
+to be on screen.
+
+Memory is the real ceiling. A 50 million point scan occupies about 2.3 GB
+across the application's processes, so 16 GB of system memory is a sensible
+floor for scans of that size. The frame-rate readout in
+**Settings, Appearance** shows both the rate and how many points are being
+drawn, which is the quickest way to find the point size a given scan affords.
 
 ---
 
@@ -224,7 +257,7 @@ A 1.8 million point scan reads in about 0.2 seconds.
 cd app
 npm install
 npm run dev        # the app, with the interface hot-reloading
-npm test           # 56 checks, no window needed
+npm test           # 64 checks, no window needed
 npm run typecheck
 npm run dist       # the Windows installer, into app/release
 ```
@@ -254,7 +287,7 @@ stylesheet already carries the safe-area insets and the touch sizing for it.
 
 The reader, the editing model and the project format are checked against a
 room built to a known size, so "4.000 m across" is asserted rather than
-eyeballed. `npm test` builds the fixture from a fixed seed and runs 56 checks
+eyeballed. `npm test` builds the fixture from a fixed seed and runs 64 checks
 over it, including that a measurement across the room comes back at 4.000 m to
 within a tenth of a millimetre, that a truncated file is refused, and that a
 project survives a save and reopen with its cut list intact.
@@ -263,13 +296,17 @@ project survives a save and reopen with its cut list intact.
 
 ## Status
 
-**0.1.0, the first release.** Working end to end on synthetic scans and on
+**0.2.0.** Working end to end on synthetic scans and on
 phone captures: open, cut, undo, measure, export, reopen.
 
 Known limits, stated rather than left to be discovered:
 
 - **PLY only.** No LAS, LAZ or E57 yet.
-- **No streaming.** See the note on size above.
+- **The whole scan is held in memory.** There is no out-of-core streaming, so
+  the ceiling is what the machine can hold. See the table above.
+- **Point order is not preserved** on import. The buffer is shuffled so that
+  the moving sample is fair, so an exported `.ply` lists the same points in a
+  different order from the source.
 - **The installer is unsigned.** See the note on SmartScreen above.
 - **Windows only** is what is built and tested. Nothing in the interface is
   Windows-specific, and the bridge exists so that iOS and Android shells can
@@ -278,3 +315,4 @@ Known limits, stated rather than left to be discovered:
 ---
 
 Snapir Design X and Snapir Viewer X are by **[SeventhSG](https://github.com/SeventhSG)**.
+

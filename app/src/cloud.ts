@@ -73,6 +73,14 @@ export class PointCloud {
    *  to re-upload the state buffer without diffing twenty million bytes. */
   revision = 0;
 
+  /** Bumped only when a point appears or disappears, which is a far rarer
+   *  event than a change of selection and is the only one that can move the
+   *  bounding box. Keeping the two apart is what stops a marquee drag from
+   *  re-measuring the whole scan on every mouse-up. */
+  private geometryGeneration = 0;
+  private boundsGeneration = -1;
+  private boundsCache: { min: [number, number, number]; max: [number, number, number] } | null = null;
+
   constructor(init: CloudInit) {
     this.positions = init.positions;
     this.colors = init.colors;
@@ -119,6 +127,13 @@ export class PointCloud {
    * read, not per frame.
    */
   liveBounds(): { min: [number, number, number]; max: [number, number, number] } | null {
+    // Cached against the geometry, not against `revision`. Selecting changes
+    // the revision hundreds of times during a drag but cannot move a point,
+    // and recomputing this on each of those walked fifty million points for
+    // an answer that had not changed. Only a delete, an undo or a restore
+    // clears it.
+    if (this.boundsGeneration === this.geometryGeneration) return this.boundsCache;
+
     let minX = Infinity, minY = Infinity, minZ = Infinity;
     let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
     const { positions, state, count } = this;
@@ -132,8 +147,11 @@ export class PointCloud {
       if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
       seen++;
     }
-    if (!seen) return null;
-    return { min: [minX, minY, minZ], max: [maxX, maxY, maxZ] };
+    this.boundsGeneration = this.geometryGeneration;
+    this.boundsCache = seen
+      ? { min: [minX, minY, minZ], max: [maxX, maxY, maxZ] }
+      : null;
+    return this.boundsCache;
   }
 
   /** The same box in metres, as width/depth/height plus its diagonal. */
@@ -420,6 +438,7 @@ export class PointCloud {
     // later redo restore points that this edit never removed.
     this.redoStack.length = 0;
     this.revision++;
+    this.geometryGeneration++;
     return n;
   }
 
@@ -434,6 +453,7 @@ export class PointCloud {
     }
     this.redoStack.push(edit);
     this.revision++;
+    this.geometryGeneration++;
     return edit.indices.length;
   }
 
@@ -448,6 +468,7 @@ export class PointCloud {
     }
     this.undoStack.push(edit);
     this.revision++;
+    this.geometryGeneration++;
     return edit.indices.length;
   }
 
@@ -460,6 +481,7 @@ export class PointCloud {
     this.undoStack.length = 0;
     this.redoStack.length = 0;
     this.revision++;
+    this.geometryGeneration++;
     return n;
   }
 

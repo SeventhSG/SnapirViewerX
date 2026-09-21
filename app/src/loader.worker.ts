@@ -8,7 +8,7 @@
  * so the biggest arrays in the app are never copied.
  */
 
-import { PlyError, readPly } from "./ply";
+import { PlyError, readPly, shuffleCloud } from "./ply";
 import { SvxpError, looksLikeSvxp, readSvxp } from "./svxp";
 import { guessSourceUnit } from "./units";
 
@@ -81,6 +81,11 @@ self.onmessage = (e: MessageEvent<LoadRequest>) => {
       last = pct;
       post({ kind: "progress", fraction: f });
     });
+
+    // Scrambled here rather than in the reader, so that the reader stays a
+    // reader and a project reopened from disk keeps the order its stored
+    // indices were written against. See shuffleCloud for why at all.
+    shuffleCloud(cloud.positions, cloud.colors, cloud.count);
 
     const size = Math.hypot(
       cloud.max[0] - cloud.min[0],

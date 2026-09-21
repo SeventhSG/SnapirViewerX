@@ -259,6 +259,10 @@ button{font-family:inherit}
 
 /* Measurement labels, drawn as real text over the canvas rather than as
    textures in the scene, so they stay crisp at any zoom and can be clicked. */
+/* Frame rate, opposite the point count so the two readings do not collide. */
+.stats{position:absolute;right:16px;top:14px;pointer-events:none;
+  font-family:var(--mono);font-size:11px;color:var(--ink-3);letter-spacing:.04em}
+
 .labels{position:absolute;inset:0;pointer-events:none}
 .mlabel{position:absolute;top:0;left:0;pointer-events:auto;
   font-family:var(--mono);font-size:11.5px;font-weight:600;white-space:nowrap;

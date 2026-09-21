@@ -42,6 +42,7 @@ interface Settings {
   defaultSourceUnit: Unit | "auto";
   pointSize: number;
   attenuate: boolean;
+  showStats: boolean;
   upAxis: UpAxis;
 }
 
@@ -52,6 +53,7 @@ const DEFAULTS: Settings = {
   defaultSourceUnit: "auto",
   pointSize: 2,
   attenuate: false,
+  showStats: false,
   upAxis: "y",
 };
 
@@ -620,6 +622,7 @@ export default function App() {
                 view={view}
                 pointSize={settings.pointSize}
                 attenuate={settings.attenuate}
+                showStats={settings.showStats}
                 dark={dark}
                 upAxis={settings.upAxis}
                 measurements={measurements}
@@ -764,6 +767,23 @@ export default function App() {
               </div>
 
               <div className="grp">
+                <h4>{T("shownIn")}</h4>
+                {/* The same setting as the one on the Settings screen, put
+                    where the numbers it governs are read. Changing what you
+                    read a length in should not be a trip to another screen,
+                    and having it here also keeps it clearly apart from the
+                    scan's own unit above, which is a different question. */}
+                <div className="seg quiet" role="group">
+                  {UNITS.map((u) => (
+                    <button key={u} aria-pressed={settings.displayUnit === u}
+                      onClick={() => setSettings((s) => ({ ...s, displayUnit: u }))}>
+                      {UNIT_LABEL[u]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grp">
                 <h4>{T("measurements")}</h4>
                 {measurements.length === 0 ? (
                   <p className="quiet">{T("noMeasurements")}</p>
@@ -889,6 +909,13 @@ export default function App() {
                         aria-label={T("attenuate")}
                         onClick={() =>
                           setSettings((s) => ({ ...s, attenuate: !s.attenuate }))} />
+                    </Row>
+                    <Row title={T("showStats")} sub={T("showStatsSub")}>
+                      <button className="sw" role="switch"
+                        aria-checked={settings.showStats}
+                        aria-label={T("showStats")}
+                        onClick={() =>
+                          setSettings((s) => ({ ...s, showStats: !s.showStats }))} />
                     </Row>
                     <Row title={T("upAxis")} sub={T("upAxisSub")}>
                       <div className="seg quiet" role="group">

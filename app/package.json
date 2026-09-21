@@ -1,7 +1,7 @@
 {
   "name": "snapir-viewer-x",
   "productName": "Snapir Viewer X",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Full-colour LiDAR scans from iPhone and iPad, cleaned and measured",
   "author": {
